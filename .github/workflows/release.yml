@@ -1,0 +1,94 @@
+name: Test, build, release and deploy
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Tests and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-fund --no-audit
+      - name: Download and verify the pinned OpenCV runtime
+        run: npm run prepare:runtime
+      - name: Graph, solver and preference tests
+        run: npm test
+      - name: Photo recognition regression tests
+        run: npm run test:vision
+      - name: Build application and offline cache
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+        run: npm run build
+      - name: Test the built browser worker
+        run: node --test test/built-worker.test.mjs
+      - name: Upload production build
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-dist
+          path: dist/
+          if-no-files-found: error
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+  release:
+    name: Publish a downloadable release
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: production-dist
+          path: dist/
+      - name: Package and release this master build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          npm run release:archive
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json')).version")
+          TAG="v${VERSION}-build.${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" release/*.zip --target "$GITHUB_SHA" --title "Scrying Solver $TAG" --generate-notes
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    needs: check
+    runs-on: ubuntu-latest
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: Deploy the verified production build
+        id: deployment
+        uses: actions/deploy-pages@v4

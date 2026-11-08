@@ -1,0 +1,8 @@
+node_modules/
+.cache/
+dist/
+release/
+public/calibration/
+public/vendor/
+public/worker/
+test/fixtures/

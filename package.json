@@ -1,0 +1,32 @@
+{
+  "name": "eso-antiquities-scrying-puzzle-solver",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A local photo recognizer and exact budgeted solver for ESO Antiquities Scrying puzzles.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "npm run prepare:runtime && node scripts/build-worker.mjs && vite --host 0.0.0.0",
+    "prepare:runtime": "node scripts/prepare-runtime.mjs",
+    "build": "npm run prepare:runtime && node scripts/build-worker.mjs && vite build && node scripts/build-offline.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test test/*.test.js",
+    "test:vision": "node --test --test-concurrency=1 test/vision/*.test.js",
+    "check": "npm run prepare:runtime && npm test && npm run test:vision && npm run build && node --test test/built-worker.test.mjs",
+    "release:archive": "node scripts/package-release.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2",
+    "sharp": "0.34.5",
+    "vite": "8.3.6"
+  }
+}
